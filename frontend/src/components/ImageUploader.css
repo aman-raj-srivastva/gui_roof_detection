@@ -1,0 +1,85 @@
+.upload-area {
+  border: 3px dashed #667eea;
+  border-radius: 15px;
+  padding: 60px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: linear-gradient(135deg, #f8f9ff 0%, #fff5f5 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.upload-area::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.1), transparent);
+  transition: left 0.5s;
+}
+
+.upload-area:hover::before {
+  left: 100%;
+}
+
+.upload-area:hover {
+  border-color: #764ba2;
+  background: linear-gradient(135deg, #f0f4ff 0%, #ffeef0 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(102, 126, 234, 0.2);
+}
+
+.upload-area.dragging {
+  border-color: #764ba2;
+  background: linear-gradient(135deg, #e8edff 0%, #ffe0e0 100%);
+  transform: scale(1.02);
+  box-shadow: 0 12px 24px rgba(102, 126, 234, 0.3);
+}
+
+.upload-area.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  border-color: #ccc;
+}
+
+.upload-content {
+  position: relative;
+  z-index: 1;
+}
+
+.upload-icon {
+  font-size: 4rem;
+  margin-bottom: 20px;
+  animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.upload-area h3 {
+  color: #333;
+  margin-bottom: 10px;
+  font-size: 1.5rem;
+}
+
+.upload-area p {
+  color: #666;
+  font-size: 1rem;
+}
+
+.disabled-message {
+  color: #667eea !important;
+  font-weight: 600;
+  margin-top: 10px;
+}
+
+
