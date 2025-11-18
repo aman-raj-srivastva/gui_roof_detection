@@ -18,7 +18,17 @@ function App() {
   const [outputImage, setOutputImage] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [resultId, setResultId] = useState(null);
+  const [segments, setSegments] = useState([]);
+  const [isDownloadingSegments, setIsDownloadingSegments] = useState(false);
   const wsRef = useRef(null);
+
+  const normalizeSegments = (segmentList = []) =>
+    segmentList
+      .filter((segment) => segment?.url)
+      .map((segment) => ({
+        ...segment,
+        imageUrl: `${API_BASE_URL}${segment.url}`,
+      }));
 
   const handleLogin = (email) => {
     setIsAuthenticated(true);
@@ -52,6 +62,9 @@ function App() {
         if (data.resultUrl) {
           setOutputImage(`${API_BASE_URL}${data.resultUrl}`);
         }
+        if (data.segments) {
+          setSegments(normalizeSegments(data.segments));
+        }
       }
     };
 
@@ -72,7 +85,9 @@ function App() {
       setProcessingProgress(0);
       setProcessingMessage('');
       setOutputImage(null);
+      setSegments([]);
       setIsProcessing(false);
+      setIsDownloadingSegments(false);
       
       // Create preview of input image
       const reader = new FileReader();
@@ -101,6 +116,9 @@ function App() {
         setResultId(response.data.resultId);
         if (response.data.resultUrl) {
           setOutputImage(`${API_BASE_URL}${response.data.resultUrl}`);
+        }
+        if (response.data.segments) {
+          setSegments(normalizeSegments(response.data.segments));
         }
       }
     } catch (error) {
@@ -154,8 +172,37 @@ function App() {
     setProcessingMessage('');
     setInputImage(null);
     setOutputImage(null);
+    setSegments([]);
     setIsProcessing(false);
+    setIsDownloadingSegments(false);
     setResultId(null);
+  };
+
+  const handleDownloadSegments = async () => {
+    if (!resultId || segments.length === 0 || isDownloadingSegments) {
+      return;
+    }
+    try {
+      setIsDownloadingSegments(true);
+      const response = await fetch(`${API_BASE_URL}/api/results/${resultId}/segments.zip`);
+      if (!response.ok) {
+        throw new Error('Failed to download segments');
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `roof-segments-${resultId}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Segments download error:', error);
+      alert('Failed to download segments. Please try again.');
+    } finally {
+      setIsDownloadingSegments(false);
+    }
   };
 
   // Show login page if not authenticated
@@ -248,6 +295,55 @@ function App() {
                   </div>
                 )}
               </div>
+
+              {segments.length > 0 && (
+                <div className="segments-section">
+                  <div className="segments-header">
+                    <h3>Detected Segments</h3>
+                    <div className="segments-actions">
+                      <span>{segments.length} found</span>
+                      <button
+                        className="segments-download-button"
+                        onClick={handleDownloadSegments}
+                        disabled={isDownloadingSegments}
+                      >
+                        {isDownloadingSegments ? 'Preparing Zip...' : '⬇️ Download Segments'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="segments-grid">
+                    {segments.map((segment) => (
+                      <div className="segment-card" key={segment.id}>
+                        <div className="segment-image-wrapper">
+                          {segment.imageUrl ? (
+                            <img
+                              src={segment.imageUrl}
+                              alt={segment.className || 'Detected segment'}
+                            />
+                          ) : (
+                            <div className="segment-placeholder">No preview</div>
+                          )}
+                        </div>
+                        <div className="segment-meta">
+                          <div>
+                            <strong>{segment.className || 'Segment'}</strong>
+                            {segment.confidence !== undefined && segment.confidence !== null && (
+                              <span className="segment-confidence">
+                                {(segment.confidence * 100).toFixed(1)}%
+                              </span>
+                            )}
+                          </div>
+                          {segment.bbox && (
+                            <span className="segment-bbox">
+                              BBox: {segment.bbox.join(', ')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

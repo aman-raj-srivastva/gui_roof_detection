@@ -6,6 +6,7 @@ const fs = require('fs');
 const { PythonShell } = require('python-shell');
 const WebSocket = require('ws');
 const { v4: uuidv4 } = require('uuid');
+const archiver = require('archiver');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -15,6 +16,7 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 app.use('/results', express.static('results'));
+app.use('/downloads', express.static('results'));
 
 // Create necessary directories
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -94,12 +96,15 @@ function runInference(imagePath, resultId, callback) {
   };
 
   const pyshell = new PythonShell('inference.py', options);
+  let pythonResult = null;
   
   pyshell.on('message', (message) => {
     try {
       const data = JSON.parse(message);
       if (data.type === 'progress') {
         broadcastProgress('processing', { progress: data.progress, message: data.message });
+      } else if (data.type === 'success') {
+        pythonResult = data;
       }
     } catch (e) {
       // Not JSON, just log it
@@ -116,7 +121,8 @@ function runInference(imagePath, resultId, callback) {
     if (err) {
       callback(err, null);
     } else {
-      callback(null, outputPath);
+      const segments = pythonResult?.segments || [];
+      callback(null, { outputPath, segments });
     }
   });
 }
@@ -137,20 +143,34 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
     // Start inference
     broadcastProgress('processing', { progress: 0, message: 'Initializing model...' });
 
-    runInference(imagePath, resultId, (error, outputPath) => {
+    runInference(imagePath, resultId, (error, inferenceResult) => {
       if (error) {
         return res.status(500).json({ error: 'Inference failed', details: error.message });
       }
 
+      const { outputPath, segments } = inferenceResult;
       const resultUrl = `/results/${path.basename(outputPath)}`;
       const inputUrl = `/uploads/${path.basename(imagePath)}`;
+
+      const formattedSegments = (segments || []).map((segment, index) => {
+        const relativePath = segment.relative_path?.replace(/\\/g, '/');
+        return {
+          id: `${resultId}-segment-${index + 1}`,
+          bbox: segment.bbox,
+          classId: segment.class_id,
+          className: segment.class_name,
+          confidence: segment.confidence,
+          url: relativePath ? `/results/${relativePath}` : null
+        };
+      });
 
       broadcastProgress('complete', { 
         progress: 100, 
         message: 'Processing complete',
         resultId,
         inputUrl,
-        resultUrl
+        resultUrl,
+        segments: formattedSegments
       });
 
       res.json({
@@ -158,6 +178,7 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
         resultId,
         inputUrl,
         resultUrl,
+        segments: formattedSegments,
         message: 'Image processed successfully'
       });
     });
@@ -196,6 +217,43 @@ app.post('/api/save', (req, res) => {
   } catch (error) {
     console.error('Save error:', error);
     res.status(500).json({ error: 'Save failed', details: error.message });
+  }
+});
+
+// Download segments as zip
+app.get('/api/results/:resultId/segments.zip', (req, res) => {
+  try {
+    const { resultId } = req.params;
+    if (!resultId) {
+      return res.status(400).json({ error: 'Missing resultId parameter' });
+    }
+
+    const segmentsDir = path.join(resultsDir, `${resultId}_segments`);
+
+    if (!fs.existsSync(segmentsDir)) {
+      return res.status(404).json({ error: 'Segments not found for the given resultId' });
+    }
+
+    const archive = archiver('zip', { zlib: { level: 9 } });
+
+    archive.on('error', (err) => {
+      console.error('Archive error:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to create archive' });
+      } else {
+        res.end();
+      }
+    });
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename=${resultId}_segments.zip`);
+
+    archive.pipe(res);
+    archive.directory(segmentsDir, false);
+    archive.finalize();
+  } catch (error) {
+    console.error('Segments download error:', error);
+    res.status(500).json({ error: 'Failed to download segments', details: error.message });
   }
 });
 
