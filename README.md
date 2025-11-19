@@ -9,6 +9,7 @@ A modern web application for roof detection using YOLOv11 segmentation model. Fe
 - 🎨 **Side-by-Side Display**: View input and output images simultaneously
 - 🔍 **Zoom Controls**: Zoom in/out and pan images for detailed inspection
 - 💾 **Save Results**: Save processed results to file
+- 🛡️ **OPA/OPAL Ready Metadata**: Downloadable per-segment artifacts for downstream policy enforcement
 - 🎯 **Modern UI**: Beautiful gradient design with smooth animations
 
 ## Prerequisites
@@ -97,6 +98,25 @@ gui/
 - `GET /api/health` - Health check
 - `WebSocket ws://localhost:8080` - Real-time progress updates
 
+## Environment Variables
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `REACT_APP_API_URL` | HTTP base URL the React app uses for REST calls | `http://localhost:5000` |
+| `REACT_APP_WS_URL` | WebSocket URL for streaming progress updates | `ws://localhost:8080` |
+
+Set these before running `npm start` in the `frontend` folder if your backend is hosted elsewhere:
+
+```bash
+REACT_APP_API_URL=https://api.example.com \
+REACT_APP_WS_URL=wss://api.example.com/ws \
+npm start
+```
+
+## Frontend Styling
+
+The React frontend now uses Tailwind CSS (v3) together with custom animations from the original GUI and the immersive interface previously shipped in `roof-detection/`. After installing dependencies (`npm install` inside `frontend`), Tailwind classes are compiled automatically through PostCSS when you run `npm start` or `npm run build`.
+
 ## Configuration
 
 You can modify the API URL in `frontend/src/App.js`:
@@ -126,6 +146,7 @@ REACT_APP_API_URL=http://your-server:5000 npm start
 ## License
 
 MIT
+
 
 
 
